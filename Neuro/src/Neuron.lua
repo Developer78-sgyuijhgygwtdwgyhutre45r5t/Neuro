@@ -1,82 +1,53 @@
-Neuron = {}
-Neuron.__index = Neuron
-Edge = require("Neuro/src/Edge")
-BiasNeuron = require("Neuro/src/BiasNeuron")
+local neuron = {}
 
-function Neuron.new(net)
-	local neuron = {}
-	setmetatable(neuron, Neuron)
-
-	neuron.incomingEdges = {}
-	neuron.outgoingEdges = {}
-	neuron.type = "normal/output"
-
-	table.insert(neuron.incomingEdges, Edge.new(BiasNeuron.new(), neuron, net))
-	
-	return neuron
+-- Random weight generation function
+function neuron.randw()
+    -- Returns a double -1 < w < 1
+    return (1 - (math.random() * 2))
 end
 
-function Neuron:evaluate(inputs)
-	if self.lastOutput then return self.lastOutput end
-	
-	self.lastInput = {}
-	local weightedSum = 0
-	
-	for _, edge in pairs(self.incomingEdges) do
-		local theInput = edge.source:evaluate(inputs)
-		table.insert(self.lastInput, theInput)
-		weightedSum = weightedSum + edge.weight * theInput
-	end
-	
-	self.lastOutput = sigmoid(weightedSum)
-	self.evaluateCache = self.lastOutput
-	return self.lastOutput
+-- Sigmoid activation function
+function neuron.sigmoid(input)
+    return 1 / (1 + math.exp(-input))
 end
 
-function Neuron:getError(example)
-	--if self.error then return self.error end
-
-	if not self.lastOutput then error("Neuron tried to get error with no last output!") end
-	
-	if #self.outgoingEdges == 0 then
-		self.error = example - self.lastOutput
-	else
-		self.error = 0
-		
-		for _, edge in pairs(self.incomingEdges) do
-			self.error = self.error + edge.weight * edge.source:getError(example)
-		end
-	end
-	
-	return self.error
+-- Initialization function for neuron
+function neuron:initialize(num_inputs)
+    self.input = {{value = -1, weight = self.randw()}} -- Bias initialization
+    if num_inputs then 
+        for input_number = 1, num_inputs do 
+            local new = {value = 1, weight = self.randw()}
+            self:addinput(new)
+        end
+    end 
 end
 
-function Neuron:updateWeights(learningRate)
-	if self.error and self.lastOutput and self.lastInput then
-		for i, edge in pairs(self.incomingEdges) do
-			edge.weight = edge.weight + (learningRate * self.lastOutput * (1 - self.lastOutput) * self.error * self.lastInput[i])
-		end
-		for _, edge in pairs(self.outgoingEdges) do
-			edge.target:updateWeights(learningRate)
-		end
-		self.error = nil
-		self.lastOutput = nil
-		self.lastInput = nil
-	end
+-- Function to add a new input to the neuron
+function neuron:addinput(input)
+    assert(input.value, "Input error: no value given")
+    assert(input.weight, "Input error: no weight given")
+    table.insert(self.input, input) -- Correct insertion into input table
 end
 
-function Neuron:clearEvaluateCache()
-	if self.lastOutput then
-		self.lastOutput = nil
-		for _, edge in pairs(self.incomingEdges) do
-			edge.source:clearEvaluateCache()
-		end
-	end
+-- Function to compute the output signal of the neuron
+function neuron:getsignal()
+    local sum = 0 
+    for _, input in ipairs(self.input) do
+        assert(input.value, "Input error: no value given")
+        assert(input.weight, "Input error: no weight given")
+        sum = sum + input.value * input.weight 
+    end 
+    return self:sigmoid(sum)
 end
 
-function sigmoid(x)
-	return  1 / (1 + math.exp(-x))
+-- Factory method to create a new neuron
+function neuron.new(num_inputs)
+    local self = setmetatable({}, {__index = neuron})
+    self:initialize(num_inputs)
+    return self
 end
 
+-- Optional: Seed the random number generator for reproducibility
+math.randomseed(os.time())
 
-return Neuron
+return neuron
